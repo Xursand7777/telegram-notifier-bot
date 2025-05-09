@@ -1,7 +1,7 @@
 const axios = require("axios");
 const { get, set } = require("@vercel/edge-config");
 
-const cooldown = 60 * 60 * 1000;  // 1 hour in milliseconds
+const cooldown = 60 * 60 * 1000; // 1 hour
 
 const sendMessage = async (message) => {
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -10,9 +10,9 @@ const sendMessage = async (message) => {
 
   try {
     const now = Date.now();
-    const lastSent = parseInt(await get("lastSent") || "0", 10);
+    const lastSentStr = await get("lastSent");
+    const lastSent = parseInt(lastSentStr || "0", 10);
 
-    // Check if the last message was sent within the cooldown period
     if (now - lastSent < cooldown) {
       console.log("Message already sent recently. Skipping...");
       return;
@@ -24,15 +24,13 @@ const sendMessage = async (message) => {
     });
     console.log("Message sent successfully");
 
-    // Update the timestamp in Vercel Edge Config
     await set("lastSent", now.toString());
   } catch (error) {
     console.error("Error sending message:", error.response?.data || error.message);
   }
 };
 
-// Exporting as a serverless function for Vercel
 module.exports = async (req, res) => {
   await sendMessage("Hello from your Telegram Notifier Bot!");
-  res.status(200).send("Message sent");
+  res.status(200).send("Done");
 };
