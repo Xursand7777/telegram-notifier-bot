@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { get, set } = require("@vercel/edge-config");
 
 const cooldown = 60 * 60 * 1000;  // 1 hour in milliseconds
 
@@ -9,7 +10,7 @@ const sendMessage = async (message) => {
 
   try {
     const now = Date.now();
-    const lastSent = parseInt(process.env.LAST_SENT || "0", 10);
+    const lastSent = parseInt(await get("lastSent") || "0", 10);
 
     // Check if the last message was sent within the cooldown period
     if (now - lastSent < cooldown) {
@@ -23,8 +24,8 @@ const sendMessage = async (message) => {
     });
     console.log("Message sent successfully");
 
-    // Update the environment variable with the new timestamp
-    process.env.LAST_SENT = now.toString();
+    // Update the timestamp in Vercel Edge Config
+    await set("lastSent", now.toString());
   } catch (error) {
     console.error("Error sending message:", error.response?.data || error.message);
   }
