@@ -1,7 +1,39 @@
 const axios = require("axios");
-const { get, set } = require("@vercel/edge-config");
+const { get } = require("@vercel/edge-config");
 
+// Replace with your actual Edge Config ID from the dashboard
+const EDGE_CONFIG_ID = process.env.EDGE_CONFIG_ID;
+
+const WRITE_TOKEN = process.env.EDGE_CONFIG_WRITE_TOKEN;
 const cooldown = 60 * 60 * 1000; // 1 hour
+
+// Update Edge Config using the REST API
+const updateLastSent = async (timestamp) => {
+  const url = `https://api.vercel.com/v1/edge-config/${EDGE_CONFIG_ID}/items`;
+
+  try {
+    await axios.patch(
+      url,
+      {
+        items: [
+          {
+            operation: "update",
+            key: "lastSent",
+            value: timestamp.toString(),
+          },
+        ],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${WRITE_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (err) {
+    console.error("Failed to update Edge Config:", err.response?.data || err.message);
+  }
+};
 
 const sendMessage = async (message) => {
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -24,7 +56,7 @@ const sendMessage = async (message) => {
     });
     console.log("Message sent successfully");
 
-    await set("lastSent", now.toString());
+    await updateLastSent(now);
   } catch (error) {
     console.error("Error sending message:", error.response?.data || error.message);
   }
