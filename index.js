@@ -16,5 +16,9 @@ const sendMessage = async (message) => {
   }
 };
 
-// Default message for the notifier bot
-sendMessage("Hello from your Telegram Notifier Bot!");
+// Exporting as a serverless function for Vercel
+module.exports = async (req, res) => {
+  await sendMessage("Hello from your Telegram Notifier Bot!");
+  res.status(200).send("Message sent");
+};
+    
