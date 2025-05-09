@@ -1,25 +1,33 @@
 name: Telegram Notifier
 
 on:
+  # Schedule trigger: every 2 hours
   schedule:
-    - cron: "0 */2 * * *" # Every 2 hours
+    - cron: "0 */2 * * *"
+
+  # Manual trigger
+  workflow_dispatch:
 
 jobs:
   notify:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout the latest code
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # Set up Node.js
       - name: Install Node.js
         uses: actions/setup-node@v3
         with:
           node-version: "18"
 
+      # Install project dependencies
       - name: Install Dependencies
         run: npm install
 
+      # Run the notifier script
       - name: Run Notifier
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
