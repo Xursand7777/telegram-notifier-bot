@@ -2,16 +2,22 @@ name: Notify Telegram
 
 on:
   schedule:
-    - cron: "0 */2 * * *" # every 2 hours (UTC)
-  workflow_dispatch: # allows manual run
+    - cron: "0 */2 * * *" # every 2 hours
+  workflow_dispatch:
 
 jobs:
-  send:
+  notify:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
+
+      - name: Restore cache
+        uses: actions/cache@v3
+        with:
+          path: group_ids.json
+          key: group-ids-cache
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -19,11 +25,17 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run Telegram notifier bot
+      - name: Send scheduled messages
         run: node index.js
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+
+      - name: Save cache
+        uses: actions/cache@v3
+        with:
+          path: group_ids.json
+          key: group-ids-cache
