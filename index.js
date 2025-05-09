@@ -1,20 +1,32 @@
+// index.js
 require("dotenv").config();
-const axios = require("axios");
+const TelegramBot = require("node-telegram-bot-api");
+const { getGroupIds } = require("./listener");
 
-const chatId = process.env.TELEGRAM_CHAT_ID;
-const token = process.env.TELEGRAM_BOT_TOKEN;
+const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: false });
 
-const url = `https://api.telegram.org/bot${token}/sendMessage`;
+const sendScheduledMessage = async () => {
+  const message = `🚀 Hello from GitHub Actions! (${new Date().toLocaleString()})`;
 
-const message = `🚀 Hello from GitHub Actions! (${new Date().toLocaleString()})`;
+  try {
+    const groupIds = await getGroupIds();
+    if (!groupIds.length) {
+      console.log("⚠️ No group IDs to send to.");
+      return;
+    }
 
-axios.post(url, {
-  chat_id: chatId,
-  text: message,
-}).then((res) => {
-  console.log("✅ Message sent:", res.data);
-  process.exit(0); // clean exit
-}).catch((err) => {
-  console.error("❌ Error sending message:", err.response?.data || err.message);
-  process.exit(1);
-});
+    for (const chatId of groupIds) {
+      try {
+        await bot.sendMessage(chatId, message);
+        console.log(`✅ Sent message to group ${chatId}`);
+      } catch (err) {
+        console.error(`❌ Failed to send to ${chatId}:`, err.response?.data || err.message);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Global error in sending messages:", err.message);
+    process.exit(1);
+  }
+};
+
+sendScheduledMessage();

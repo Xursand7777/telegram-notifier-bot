@@ -1,12 +1,12 @@
-name: Notify Telegram
+name: Poll for New Group Joins
 
 on:
   schedule:
-    - cron: "0 */2 * * *" # every 2 hours (UTC)
-  workflow_dispatch: # allows manual run
+    - cron: "*/5 * * * *" # every 5 minutes
+  workflow_dispatch:
 
 jobs:
-  send:
+  poll:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,8 +21,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run Telegram notifier bot
-        run: node index.js
+      - name: Run bot listener (poll for 60s)
+        run: node bot.js
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
