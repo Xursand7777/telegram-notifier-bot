@@ -21,7 +21,7 @@ jobs:
             pendingGroupIds.json
           key: group-ids-cache
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
@@ -29,18 +29,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Poll for new groups
+      - name: Poll for new group joins
         run: node bot.js
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
-          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
 
-      - name: Sync pending → JSONBin
+      - name: Sync pending IDs into JSONBin
         run: node sync.js
         env:
-          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
 
       - name: Save cache
         uses: actions/cache@v3

@@ -2,9 +2,9 @@
 require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
 const {
-  getGroupIds,
   readLocalGroupIds,
-  writeLocalGroupIds
+  writeLocalGroupIds,
+  getGroupIds
 } = require("./listener");
 
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: false });
@@ -15,7 +15,7 @@ async function loadGroupIds() {
     console.log("✅ Loaded group IDs from local cache");
     return cached;
   }
-  console.log("⚠️ Local cache empty, fetching from JSONBin");
+  console.log("⚠️ Local cache empty—fetching from JSONBin");
   const fresh = await getGroupIds();
   writeLocalGroupIds(fresh);
   return fresh;
