@@ -1,4 +1,4 @@
-name: Poll & Sync Group Joins
+name: Poll for Group Joins
 
 on:
   schedule:
@@ -6,44 +6,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  poll-sync:
+  poll:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Restore cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            group_ids.json
-            pendingGroupIds.json
-          key: group-ids-cache
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 18
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
       - name: Poll for new group joins
         run: node bot.js
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-
-      - name: Sync pending IDs into JSONBin
-        run: node sync.js
-        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
           JSONBIN_BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
-
-      - name: Save cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            group_ids.json
-            pendingGroupIds.json
-          key: group-ids-cache
