@@ -1,10 +1,9 @@
-// bot.js
 require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
 const { addGroupId } = require("./listener");
 
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
-const WINDOW = 3 * 60 * 1000; // 3 minutes
+const WINDOW = 3 * 60 * 1000; 
 
 console.log("🤖 Polling for group joins (180s)…");
 
@@ -17,7 +16,6 @@ bot.on("my_chat_member", async (msg) => {
   }
 });
 
-// after WINDOW ms, exit so GH Actions can move on
 setTimeout(() => {
   console.log("🛑 Poll window ended—exiting.");
   process.exit(0);

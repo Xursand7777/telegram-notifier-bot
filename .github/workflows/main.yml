@@ -2,7 +2,7 @@ name: Notify Telegram
 
 on:
   schedule:
-    - cron: "0 */2 * * *" # every 2 hours
+    - cron: "0 */2 * * *"
   workflow_dispatch:
 
 jobs:

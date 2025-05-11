@@ -1,4 +1,3 @@
-// listener.js
 require("dotenv").config();
 const axios = require("axios");
 
@@ -10,7 +9,6 @@ const HEADERS  = {
   "Content-Type": "application/json"
 };
 
-// Fetch the full list of group IDs
 async function getGroupIds() {
   try {
     console.log("📡 Fetching group IDs from JSONBin…");
@@ -22,7 +20,6 @@ async function getGroupIds() {
   }
 }
 
-// Add one new group ID to the bin
 async function addGroupId(newId) {
   console.log(`📥 Adding new group ID ${newId}…`);
   const existing = await getGroupIds();
