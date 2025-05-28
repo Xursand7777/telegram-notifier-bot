@@ -1,8 +1,19 @@
 require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
-const { getGroupIds } = require("./listener");
+const fs = require('fs').promises;
 
+const DATA_FILE = './group_ids.json';
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: false });
+
+async function getGroupIds() {
+  try {
+    const data = await fs.readFile(DATA_FILE, 'utf8');
+    return JSON.parse(data).group_ids || [];
+  } catch (err) {
+    console.error("❌ Failed to read group IDs:", err.message);
+    return [];
+  }
+}
 
 ;(async () => {
   const groupIds = await getGroupIds();
