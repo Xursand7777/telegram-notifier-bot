@@ -6,9 +6,9 @@ const { execSync } = require('child_process');
 const DATA_FILE = './group_ids.json';
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 
-const WINDOW = 4.5 * 60 * 1000; 
 
-console.log("🤖 Polling for group joins (270s)…");
+const WINDOW = 5 * 60 * 1000; 
+console.log("🤖 Polling for group joins (300s)…");
 
 async function getGroupIds() {
   try {
