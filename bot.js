@@ -29,14 +29,27 @@ async function addGroupId(newId) {
     await fs.writeFile(DATA_FILE, JSON.stringify({ group_ids: updated }, null, 2));
     console.log(`✅ Successfully added ${newId}`);
     
-    // Set up git identity for the action
-    execSync('git config --global user.name "GitHub Actions Bot"');
-    execSync('git config --global user.email "actions@github.com"');
-    
-    // Commit and push the changes
-    execSync('git add group_ids.json');
-    execSync('git commit -m "Add new group ID"');
-    execSync('git push');
+    try {
+      // Set up git identity for the action
+      execSync('git config --global user.name "GitHub Actions Bot"');
+      execSync('git config --global user.email "actions@github.com"');
+      
+      // Pull latest changes before pushing to avoid conflicts
+      try {
+        execSync('git pull --rebase');
+      } catch (pullError) {
+        console.log("⚠️ Pull failed, continuing anyway:", pullError.message);
+      }
+      
+      // Commit and push the changes
+      execSync('git add group_ids.json');
+      execSync('git commit -m "Add new group ID"');
+      execSync('git push');
+      console.log("✅ Changes pushed to repository");
+    } catch (gitError) {
+      console.error("⚠️ Git operation failed:", gitError.message);
+      console.log("The group ID was saved locally but not pushed to repository");
+    }
     
     return true; // Signal that this was a new addition
   } else {
