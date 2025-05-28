@@ -24,24 +24,20 @@ async function addGroupId(newId) {
   const existing = await getGroupIds();
   
   if (!existing.includes(newId)) {
-    // This is a NEW group - add it
     const updated = [...existing, newId];
     await fs.writeFile(DATA_FILE, JSON.stringify({ group_ids: updated }, null, 2));
     console.log(`✅ Successfully added ${newId}`);
     
     try {
-      // Set up git identity for the action
       execSync('git config --global user.name "GitHub Actions Bot"');
       execSync('git config --global user.email "actions@github.com"');
       
-      // Pull latest changes before pushing to avoid conflicts
       try {
         execSync('git pull --rebase');
       } catch (pullError) {
         console.log("⚠️ Pull failed, continuing anyway:", pullError.message);
       }
       
-      // Commit and push the changes
       execSync('git add group_ids.json');
       execSync('git commit -m "Add new group ID"');
       execSync('git push');
@@ -51,10 +47,10 @@ async function addGroupId(newId) {
       console.log("The group ID was saved locally but not pushed to repository");
     }
     
-    return true; // Signal that this was a new addition
+    return true; 
   } else {
     console.log(`ℹ️ ${newId} already present, skipping.`);
-    return false; // Signal that this group was already registered
+    return false; 
   }
 }
 
@@ -63,7 +59,6 @@ bot.on("my_chat_member", async (msg) => {
   const status = msg.new_chat_member?.status;
   if (status === "administrator" && chatId) {
     const isNewGroup = await addGroupId(chatId);
-    // Only send the welcome message if this is a new group
     if (isNewGroup) {
       await bot.sendMessage(chatId, "✅ Bot added! You'll get updates every 2 hours.");
     }
