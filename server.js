@@ -43,7 +43,8 @@ const mainMenu = {
   reply_markup: {
     keyboard: [
       [{ text: "🚀 Send Message" }, { text: "⚙️ Settings" }],
-      [{ text: "👤 My Profile" }, { text: "🔒 Logout" }]
+      [{ text: "👤 My Profile" }, { text: "👥 My Groups" }],
+      [{ text: "🔒 Logout" }]
     ],
     resize_keyboard: true,
   }
@@ -112,50 +113,68 @@ bot.on('message', async (msg) => {
   if (text === '🚀 Send Message') {
     return bot.sendMessage(chatId, "How would you like to send a message?", { reply_markup: sendMessageMenu });
   }
+  
   if (text === '⚙️ Settings') {
     return bot.sendMessage(chatId, "What would you like to configure?", { reply_markup: settingsMenu });
   }
-if (text === '👤 My Profile') {
+  
+  if (text === '👥 My Groups') {
+    const data = await readData();
+    const user = data.users[chatId];
+    if (!user) {
+      return bot.sendMessage(chatId, "You don't seem to be logged in. Type /start");
+    }
+    
+    if (user.groups.length === 0) {
+      return bot.sendMessage(chatId, "You haven't added this bot to any groups yet. Add the bot as an admin to your groups.");
+    }
+    
+    // Send a "loading" message since getting group info might take time
+    const loadingMsg = await bot.sendMessage(chatId, "🔄 *Loading your groups...*", { parse_mode: 'Markdown' });
+    
+    // Build a keyboard with group names and delete buttons
+    const groupKeyboard = {
+      inline_keyboard: []
+    };
+    
+    for (const groupId of user.groups) {
+      try {
+        const chatInfo = await bot.getChat(groupId);
+        const chatName = chatInfo.title || chatInfo.username || `Group ${groupId}`;
+        groupKeyboard.inline_keyboard.push([
+          { text: chatName, callback_data: `group_info_${groupId}` },
+          { text: "❌ Remove", callback_data: `remove_group_${groupId}` }
+        ]);
+      } catch (err) {
+        console.error(`Failed to get info for group ${groupId}:`, err.message);
+        groupKeyboard.inline_keyboard.push([
+          { text: `Unknown Group (${groupId})`, callback_data: `group_info_${groupId}` },
+          { text: "❌ Remove", callback_data: `remove_group_${groupId}` }
+        ]);
+      }
+    }
+    
+    await bot.deleteMessage(chatId, loadingMsg.message_id);
+    return bot.sendMessage(chatId, "👥 *Your Groups*\nSelect a group to see details or remove it:", {
+      parse_mode: 'Markdown',
+      reply_markup: groupKeyboard
+    });
+  }
+  
+  if (text === '👤 My Profile') {
     const data = await readData();
     const user = data.users[chatId];
     if (user) {
       const settings = user.notificationSettings;
-      
-      // First send a "loading" message since getting group info might take time
-      const loadingMsg = await bot.sendMessage(chatId, "📊 *Loading your profile...*", { parse_mode: 'Markdown' });
-      
-      // Get information about each group
-      let groupsList = "";
-      if (user.groups.length > 0) {
-        groupsList = "\n\n*Groups:*\n";
-        let counter = 1;
-        
-        for (const groupId of user.groups) {
-          try {
-            const chatInfo = await bot.getChat(groupId);
-            const chatName = chatInfo.title || chatInfo.username || `Group ${groupId}`;
-            groupsList += `${counter}. ${chatName}\n`;
-            counter++;
-          } catch (err) {
-            console.error(`Failed to get info for group ${groupId}:`, err.message);
-            groupsList += `${counter}. Unknown Group (ID: ${groupId})\n`;
-            counter++;
-          }
-        }
-      } else {
-        groupsList = "\n\n*Groups:* No groups yet. Add this bot to groups as admin.";
-      }
       
       const profileText = `
 👤 *Your Profile*
 *Login:* \`${user.login}\`
 *Groups Managed:* ${user.groups.length}
 *Notification Schedule:* Every ${settings.intervalHours} hours, starting at ${String(settings.startTime).padStart(2, '0')}:00
-*Default Message:* "${settings.defaultMessage}"${groupsList}
+*Default Message:* "${settings.defaultMessage}"
       `;
       
-      // Delete the loading message and send the complete profile
-      await bot.deleteMessage(chatId, loadingMsg.message_id);
       return bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
     }
     return bot.sendMessage(chatId, "You don't seem to be logged in. Type /start");
@@ -274,6 +293,171 @@ bot.on('callback_query', async (callbackQuery) => {
       { chat_id: chatId, message_id: msg.message_id }
     );
     delete userSessions[chatId];
+  } else if (data.startsWith('group_info_')) {
+    // When user taps on a group name, show more details
+    const groupId = data.split('group_info_')[1];
+    try {
+      const chatInfo = await bot.getChat(groupId);
+      const membersCount = await bot.getChatMemberCount(groupId);
+      const groupDetails = `
+📊 *Group Details*
+*Name:* ${chatInfo.title || 'Unnamed'}
+*Username:* ${chatInfo.username ? '@' + chatInfo.username : 'None'}
+*Members:* ${membersCount}
+*Group ID:* \`${groupId}\`
+      `;
+      await bot.editMessageText(groupDetails, {
+        chat_id: chatId,
+        message_id: msg.message_id,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "◀️ Back to Groups", callback_data: "back_to_groups" }],
+            [{ text: "❌ Remove This Group", callback_data: `remove_group_${groupId}` }]
+          ]
+        }
+      });
+    } catch (err) {
+      console.error(`Error getting group info: ${err.message}`);
+      await bot.editMessageText("Error retrieving group information.", {
+        chat_id: chatId,
+        message_id: msg.message_id,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "◀️ Back to Groups", callback_data: "back_to_groups" }],
+            [{ text: "❌ Remove This Group", callback_data: `remove_group_${groupId}` }]
+          ]
+        }
+      });
+    }
+  } else if (data === 'back_to_groups') {
+    // Refresh the groups list when going back
+    const userData = await readData();
+    const user = userData.users[chatId];
+    
+    if (!user || user.groups.length === 0) {
+      await bot.editMessageText("You don't have any groups.", {
+        chat_id: chatId, 
+        message_id: msg.message_id
+      });
+      return;
+    }
+    
+    const groupKeyboard = {
+      inline_keyboard: []
+    };
+    
+    for (const groupId of user.groups) {
+      try {
+        const chatInfo = await bot.getChat(groupId);
+        const chatName = chatInfo.title || chatInfo.username || `Group ${groupId}`;
+        groupKeyboard.inline_keyboard.push([
+          { text: chatName, callback_data: `group_info_${groupId}` },
+          { text: "❌ Remove", callback_data: `remove_group_${groupId}` }
+        ]);
+      } catch (err) {
+        groupKeyboard.inline_keyboard.push([
+          { text: `Unknown Group (${groupId})`, callback_data: `group_info_${groupId}` },
+          { text: "❌ Remove", callback_data: `remove_group_${groupId}` }
+        ]);
+      }
+    }
+    
+    await bot.editMessageText("👥 *Your Groups*\nSelect a group to see details or remove it:", {
+      chat_id: chatId,
+      message_id: msg.message_id,
+      parse_mode: 'Markdown',
+      reply_markup: groupKeyboard
+    });
+  } else if (data.startsWith('remove_group_')) {
+    const groupId = data.split('remove_group_')[1];
+    
+    // Show confirmation dialog before removing
+    await bot.editMessageText(
+      "⚠️ *Are you sure you want to remove this group?*\n\nThe bot will leave the group and it will be removed from your list.",
+      {
+        chat_id: chatId,
+        message_id: msg.message_id,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "✅ Yes, Remove", callback_data: `confirm_remove_group_${groupId}` },
+              { text: "❌ No, Cancel", callback_data: "back_to_groups" }
+            ]
+          ]
+        }
+      }
+    );
+  }    else if (data.startsWith('confirm_remove_group_')) {
+    const groupIdToRemove = parseInt(data.split('confirm_remove_group_')[1], 10);
+    let appData = await readData();
+    const user = appData.users[chatId];
+    
+    if (!user) return;
+    
+    // Try to leave the group
+    try {
+      await bot.leaveChat(groupIdToRemove);
+      console.log(`✅ Bot left group ${groupIdToRemove}`);
+    } catch (err) {
+      console.error(`❌ Failed to leave group ${groupIdToRemove}:`, err.message);
+      // Continue with removal even if leaving fails
+    }
+    
+    // Remove the group from user's data by comparing numbers
+    user.groups = user.groups.filter(id => id !== groupIdToRemove);
+    await writeData(appData);
+    console.log(`Group ${groupIdToRemove} removed from user ${user.login}'s data`);
+    
+    // Show a temporary success message
+    await bot.editMessageText("✅ Group removed successfully. Refreshing group list...", {
+       chat_id: chatId,
+      message_id: msg.message_id
+    });
+    
+    // Re-read the data to ensure we have the latest state
+    appData = await readData();
+    const updatedUser = appData.users[chatId];
+    
+    // Handle case where user has no groups left
+    if (!updatedUser || updatedUser.groups.length === 0) {
+      await bot.editMessageText("You have no groups left. Add this bot as admin to groups to manage them.", {
+        chat_id: chatId,
+        message_id: msg.message_id
+      });
+      return;
+    }
+    
+    // Build an updated keyboard with the refreshed group list
+    const groupKeyboard = {
+      inline_keyboard: []
+    };
+    
+    for (const remainingGroupId of updatedUser.groups) {
+      try {
+        const chatInfo = await bot.getChat(remainingGroupId);
+        const chatName = chatInfo.title || chatInfo.username || `Group ${remainingGroupId}`;
+        groupKeyboard.inline_keyboard.push([
+          { text: chatName, callback_data: `group_info_${remainingGroupId}` },
+          { text: "❌ Remove", callback_data: `remove_group_${remainingGroupId}` }
+        ]);
+      } catch (err) {
+        console.error(`Failed to get info for group ${remainingGroupId}:`, err.message);
+        groupKeyboard.inline_keyboard.push([
+          { text: `Unknown Group (${remainingGroupId})`, callback_data: `group_info_${remainingGroupId}` },
+          { text: "❌ Remove", callback_data: `remove_group_${remainingGroupId}` }
+        ]);
+      }
+    }
+    
+    // Show the updated groups list
+    await bot.editMessageText("👥 *Your Groups*\nGroup removed successfully! Here are your remaining groups:", {
+      chat_id: chatId,
+      message_id: msg.message_id,
+      parse_mode: 'Markdown',
+      reply_markup: groupKeyboard
+    });
   } else if (data === 'logout_confirm') {
     const data = await readData();
     const user = data.users[chatId];
@@ -313,22 +497,35 @@ bot.on("my_chat_member", async (msg) => {
   const userId = msg.from.id;
   const user = data.users[userId];
   const groupId = msg.chat.id;
+  const chatInfo = msg.chat; // Get chat info from the update itself
 
   if (!user) {
     console.log(`Bot added to group ${groupId} by a non-registered user ${userId}. Ignoring.`);
     return;
   }
 
+  const chatName = chatInfo.title || `Group ID ${groupId}`;
+
   if (msg.new_chat_member.status === "administrator") {
     if (!user.groups.includes(groupId)) {
       user.groups.push(groupId);
       await writeData(data);
       console.log(`✅ Added group ${groupId} for user ${user.login}`);
+      // Notify the user that the group was added successfully
+      bot.sendMessage(userId, `✅ Success! The bot has been added to the group "${chatName}" and it's now linked to your account.`);
     }
+  } else if (msg.new_chat_member.status === "member") {
+      // Inform the user that the bot needs admin rights
+      bot.sendMessage(userId, `⚠️ The bot was added to "${chatName}", but it needs to be an administrator to function correctly. Please promote it to an admin.`);
   } else if (["left", "kicked"].includes(msg.new_chat_member.status)) {
-    user.groups = user.groups.filter(id => id !== groupId);
-    await writeData(data);
-    console.log(`🗑️ Removed group ${groupId} for user ${user.login}`);
+    // Check if the group was actually in the user's list before removing
+    if (user.groups.includes(groupId)) {
+        user.groups = user.groups.filter(id => id !== groupId);
+        await writeData(data);
+        console.log(`🗑️ Removed group ${groupId} for user ${user.login}`);
+        // Notify the user that the group has been unlinked
+        bot.sendMessage(userId, `ℹ️ The bot has been removed from the group "${chatName}" and it has been unlinked from your account.`);
+    }
   }
 });
 
