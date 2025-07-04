@@ -1,0 +1,20 @@
+{
+  "users": {
+    "341346374": {
+      "login": "Xusniddin",
+      "password": "qwerty12345",
+      "groups": [
+        -4720429088,
+        -4905774004
+      ],
+      "notificationSettings": {
+        "enabled": true,
+        "intervalHours": 4,
+        "startTime": 7,
+        "endTime": 4,
+        "defaultMessage": "This is a default periodic message.",
+        "lastNotified": null
+      }
+    }
+  }
+}
