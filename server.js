@@ -568,33 +568,32 @@ async function checkScheduledMessages() {
     const user = data.users[userId];
     const settings = user.notificationSettings;
 
-    // Check if notifications should be sent based on the current hour
-    // For example, if startTime is 8 and interval is 6, send at 8, 14, 20, etc.
-    const hoursSinceStartTime = (24 + currentTashkentHour - settings.startTime) % 24;
-    const shouldSendThisHour = hoursSinceStartTime % settings.intervalHours === 0;
-    
-    // Only process if it's within 5 minutes of the hour to avoid multiple sends
-    if (!shouldSendThisHour || currentTashkentMinute > 5) {
-      continue;
-    }
+    if (!settings.enabled) continue;
 
-    // On first run for a user, set the lastNotified time to now and wait for the next interval
-    if (settings.enabled && !settings.lastNotified) {
-      data.users[userId].notificationSettings.lastNotified = now.getTime();
-      dataChanged = true;
-      continue;
-    }
-    
-    if (!settings.enabled || !settings.lastNotified) continue;
-
-    // Check if enough time has passed since the last notification
+    // This is the primary check: has enough time passed since the last send?
     const intervalMillis = settings.intervalHours * 60 * 60 * 1000;
-    if (now.getTime() - settings.lastNotified >= intervalMillis) {
-      console.log(`🔔 Sending scheduled message for user ${user.login} (Tashkent Time: ${currentTashkentHour}:${currentTashkentMinute})`);
-      await sendGroupMessage(userId, settings.defaultMessage);
-      data.users[userId].notificationSettings.lastNotified = now.getTime();
-      dataChanged = true;
+    const lastNotifiedTime = settings.lastNotified ? new Date(settings.lastNotified).getTime() : 0;
+
+    if (now.getTime() - lastNotifiedTime < intervalMillis) {
+      continue; // Not enough time has passed, skip.
     }
+
+    // This is the secondary check: is it the correct hour based on the schedule?
+    // This prevents drift if the bot was offline.
+    const hoursSinceStart = (now.getTime() - new Date(settings.startTime).getTime()) / (1000 * 60 * 60);
+    const shouldSendThisHour = Math.round(hoursSinceStart) % settings.intervalHours === 0;
+
+    // Only process if it's the correct hour and within the first 5 minutes to avoid multiple sends.
+    if (!shouldSendThisHour || currentTashkentMinute > 5) {
+      // If enough time has passed but it's not the scheduled hour, we likely missed a notification.
+      // We will wait for the next correct hour.
+      continue;
+    }
+
+    console.log(`🔔 Sending scheduled message for user ${user.login} (Tashkent Time: ${currentTashkentHour}:${String(currentTashkentMinute).padStart(2, '0')})`);
+    await sendGroupMessage(userId, settings.defaultMessage);
+    data.users[userId].notificationSettings.lastNotified = now.getTime();
+    dataChanged = true;
   }
 
   if (dataChanged) {
