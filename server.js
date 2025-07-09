@@ -272,9 +272,13 @@ bot.on('callback_query', async (callbackQuery) => {
     bot.sendMessage(chatId, "Please type the custom message you want to send.");
   } else if (data === 'send_default') {
     const appData = await readData();
-    const defaultMessage = appData.users[chatId]?.notificationSettings?.defaultMessage;
-    if (defaultMessage) {
-      await sendGroupMessage(chatId, defaultMessage);
+    const userSettings = appData.users[chatId]?.notificationSettings;
+    if (userSettings?.defaultMessage || userSettings?.defaultPhoto) {
+      await sendGroupMessage(
+        chatId,
+        userSettings.defaultMessage || '',
+        userSettings.defaultPhoto || null
+      );
     } else {
       bot.sendMessage(chatId, "⚠️ No default message is set.");
     }
