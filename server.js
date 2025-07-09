@@ -44,7 +44,7 @@ const mainMenu = {
     keyboard: [
       [{ text: "🚀 Send Message" }, { text: "⚙️ Settings" }],
       [{ text: "👤 My Profile" }, { text: "👥 My Groups" }],
-      [{ text: "🔒 Logout" }]
+      [{ text: "🆘 Help" }, { text: "🔒 Logout" }]
     ],
     resize_keyboard: true,
   }
@@ -160,7 +160,20 @@ bot.on('message', async (msg) => {
       reply_markup: groupKeyboard
     });
   }
-  
+   if (text === '/help' || text === '🆘 Help') {
+    return bot.sendMessage(chatId, `
+*How to use the Notifier Bot:*
+
+1. *Add the bot as an admin* to any group you want to manage.
+2. Use *"Send Message"* to send a custom or default message to all your groups.
+3. Use *"Settings"* to set your default message and schedule.
+4. Use *"My Groups"* to see and manage your groups.
+5. You can send a photo with a caption as your default or custom message.
+6. Use *"Logout"* to remove your data and unlink all groups.
+
+_You can always type /help or tap the Help button for this guide._
+    `, { parse_mode: 'Markdown' });
+  }
   if (text === '👤 My Profile') {
     const data = await readData();
     const user = data.users[chatId];
@@ -214,14 +227,29 @@ bot.on('message', async (msg) => {
       // Send the informational follow-up message
       return bot.sendMessage(chatId, "You can now add this bot as an administrator to your groups or channels. It will automatically detect and link them to your account.");
     
-    case 'awaiting_custom_message':
-      await sendGroupMessage(chatId, text);
+   case 'awaiting_custom_message':
+      if (msg.photo) {
+        // User sent a photo (possibly with caption)
+        const fileId = msg.photo[msg.photo.length - 1].file_id; // largest size
+        await sendGroupMessage(chatId, msg.caption || '', fileId);
+      } else {
+        // Text only
+        await sendGroupMessage(chatId, text);
+      }
       delete userSessions[chatId];
       break;
 
+
     case 'awaiting_default_message':
       const dataToUpdate = await readData();
-      dataToUpdate.users[chatId].notificationSettings.defaultMessage = text;
+      if (msg.photo) {
+        const fileId = msg.photo[msg.photo.length - 1].file_id;
+        dataToUpdate.users[chatId].notificationSettings.defaultMessage = msg.caption || '';
+        dataToUpdate.users[chatId].notificationSettings.defaultPhoto = fileId;
+      } else {
+        dataToUpdate.users[chatId].notificationSettings.defaultMessage = text;
+        dataToUpdate.users[chatId].notificationSettings.defaultPhoto = null;
+      }
       await writeData(dataToUpdate);
       await bot.sendMessage(chatId, "✅ Default message updated!");
       delete userSessions[chatId];
@@ -531,7 +559,7 @@ bot.on("my_chat_member", async (msg) => {
 
 // --- Message Sending and Scheduling ---
 
-async function sendGroupMessage(userId, message) {
+async function sendGroupMessage(userId, message, photoFileId = null) {
   const data = await readData();
   const user = data.users[userId];
   if (!user || user.groups.length === 0) {
@@ -543,7 +571,11 @@ async function sendGroupMessage(userId, message) {
   let successCount = 0;
   for (const groupId of user.groups) {
     try {
-      await bot.sendMessage(groupId, message);
+      if (photoFileId) {
+        await bot.sendPhoto(groupId, photoFileId, { caption: message });
+      } else {
+        await bot.sendMessage(groupId, message);
+      }
       successCount++;
     } catch (err) {
       console.error(`Failed to send to ${groupId}:`, err.message);
@@ -591,7 +623,7 @@ async function checkScheduledMessages() {
     }
 
     console.log(`🔔 Sending scheduled message for user ${user.login} (Tashkent Time: ${currentTashkentHour}:${String(currentTashkentMinute).padStart(2, '0')})`);
-    await sendGroupMessage(userId, settings.defaultMessage);
+    await sendGroupMessage(userId, settings.defaultMessage, settings.defaultPhoto || null);
     data.users[userId].notificationSettings.lastNotified = now.getTime();
     dataChanged = true;
   }
