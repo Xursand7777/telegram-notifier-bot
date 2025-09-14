@@ -588,15 +588,20 @@ async function sendGroupMessage(userId, message, photoFileId = null) {
   bot.sendMessage(userId, `✅ Message sent to ${successCount} out of ${user.groups.length} groups.`);
 }
 
+
 async function checkScheduledMessages() {
   const data = await readData();
   const now = new Date();
 
-  const tashkentOffset = 5 * 60;
+  // Convert to Tashkent time (UTC+5)
+  const tashkentOffset = 5 * 60; // 5 hours in minutes
   const localOffset = now.getTimezoneOffset();
   const tashkentTime = new Date(now.getTime() + (tashkentOffset + localOffset) * 60000);
+
   const currentTashkentHour = tashkentTime.getHours();
   const currentTashkentMinute = tashkentTime.getMinutes();
+
+  console.log(`🕐 Current Tashkent Time: ${currentTashkentHour}:${String(currentTashkentMinute).padStart(2, '0')}`);
 
   let dataChanged = false;
 
@@ -606,28 +611,44 @@ async function checkScheduledMessages() {
 
     if (!settings.enabled) continue;
 
-    // This is the primary check: has enough time passed since the last send?
+    // Check if enough time has passed since last notification (minimum interval protection)
     const intervalMillis = settings.intervalHours * 60 * 60 * 1000;
     const lastNotifiedTime = settings.lastNotified ? new Date(settings.lastNotified).getTime() : 0;
+    const timeSinceLastNotification = now.getTime() - lastNotifiedTime;
 
-    if (now.getTime() - lastNotifiedTime < intervalMillis) {
-      continue; // Not enough time has passed, skip.
-    }
-
-    // This is the secondary check: is it the correct hour based on the schedule?
-    // This prevents drift if the bot was offline.
-    const hoursSinceStart = (now.getTime() - new Date(settings.startTime).getTime()) / (1000 * 60 * 60);
-    const shouldSendThisHour = Math.round(hoursSinceStart) % settings.intervalHours === 0;
-
-    // Only process if it's the correct hour and within the first 5 minutes to avoid multiple sends.
-    if (!shouldSendThisHour || currentTashkentMinute > 5) {
-      // If enough time has passed but it's not the scheduled hour, we likely missed a notification.
-      // We will wait for the next correct hour.
+    // Skip if not enough time has passed since last notification
+    if (timeSinceLastNotification < intervalMillis - (5 * 60 * 1000)) { // 5 minute tolerance
       continue;
     }
 
-    console.log(`🔔 Sending scheduled message for user ${user.login} (Tashkent Time: ${currentTashkentHour}:${String(currentTashkentMinute).padStart(2, '0')})`);
+    // Check if current hour matches the schedule
+    const hoursSinceStartHour = (currentTashkentHour - settings.startTime + 24) % 24;
+    const isScheduledHour = (hoursSinceStartHour % settings.intervalHours) === 0;
+
+    // Only send if it's a scheduled hour and within the first 5 minutes
+    if (!isScheduledHour) {
+      console.log(`⏭️ User ${user.login}: Not a scheduled hour. Current: ${currentTashkentHour}, Start: ${settings.startTime}, Interval: ${settings.intervalHours}h`);
+      continue;
+    }
+
+    // Only send within first 5 minutes of the hour to avoid duplicates
+    if (currentTashkentMinute > 5) {
+      console.log(`⏭️ User ${user.login}: Past 5-minute window (current minute: ${currentTashkentMinute})`);
+      continue;
+    }
+
+    // Additional check: don't send if we already sent in the last hour
+    if (timeSinceLastNotification < (50 * 60 * 1000)) { // Less than 50 minutes ago
+      console.log(`⏭️ User ${user.login}: Already sent recently (${Math.round(timeSinceLastNotification / 60000)} minutes ago)`);
+      continue;
+    }
+
+    console.log(`🔔 Sending scheduled message for user ${user.login} at ${currentTashkentHour}:${String(currentTashkentMinute).padStart(2, '0')} (Tashkent Time)`);
+
+    // Send the message
     await sendGroupMessage(userId, settings.defaultMessage, settings.defaultPhoto || null);
+
+    // Update last notification time
     data.users[userId].notificationSettings.lastNotified = now.getTime();
     dataChanged = true;
   }
@@ -636,6 +657,7 @@ async function checkScheduledMessages() {
     await writeData(data);
   }
 }
+
 
 // Run scheduler every 5 minutes
 setInterval(checkScheduledMessages, 5 * 60 * 1000);
